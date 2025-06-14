@@ -1,0 +1,178 @@
+{
+  "masculine_coded": {
+    "competitive_terms": [
+      "aggressive",
+      "assertive",
+      "competitive",
+      "dominant",
+      "forceful",
+      "ambitious",
+      "driven",
+      "determined",
+      "decisive",
+      "confident"
+    ],
+    "independence_terms": [
+      "independent",
+      "individual",
+      "self-reliant",
+      "autonomous",
+      "leader",
+      "outspoken",
+      "strong",
+      "fearless",
+      "bold",
+      "challenging"
+    ],
+    "tech_slang": [
+      "ninja",
+      "rockstar",
+      "guru",
+      "wizard",
+      "champion",
+      "warrior",
+      "hero",
+      "master",
+      "expert",
+      "hacker",
+      "superstar"
+    ]
+  },
+  "feminine_coded": {
+    "collaborative_terms": [
+      "collaborative",
+      "cooperative",
+      "supportive",
+      "understanding",
+      "interdependent",
+      "team-oriented",
+      "together",
+      "community",
+      "share"
+    ],
+    "nurturing_terms": [
+      "empathetic",
+      "nurturing",
+      "considerate",
+      "caring",
+      "patient",
+      "gentle",
+      "kind",
+      "thoughtful",
+      "compassionate",
+      "sensitive"
+    ],
+    "communication_terms": [
+      "communicate",
+      "listen",
+      "responsive",
+      "interpersonal",
+      "relationship",
+      "connect",
+      "engage",
+      "interact",
+      "dialogue"
+    ]
+  },
+  "inclusive_terms": {
+    "diversity_words": [
+      "diverse",
+      "inclusive",
+      "welcoming",
+      "belonging",
+      "equity",
+      "fair",
+      "equal opportunity",
+      "accessible",
+      "accommodation"
+    ],
+    "growth_words": [
+      "development",
+      "learning",
+      "growth",
+      "mentorship",
+      "training",
+      "career advancement",
+      "professional development",
+      "opportunity"
+    ],
+    "balance_words": [
+      "flexible",
+      "work-life balance",
+      "remote",
+      "hybrid",
+      "flexible hours",
+      "family-friendly",
+      "wellness",
+      "support"
+    ]
+  },
+  "exclusive_indicators": {
+    "pressure_terms": [
+      "demanding",
+      "intense",
+      "fast-paced",
+      "high-pressure",
+      "stressful",
+      "aggressive deadlines",
+      "tight deadlines",
+      "demanding environment"
+    ],
+    "strict_requirements": [
+      "must have",
+      "required",
+      "essential",
+      "mandatory",
+      "critical",
+      "absolutely necessary",
+      "non-negotiable",
+      "strict requirements"
+    ],
+    "limiting_phrases": [
+      "only consider",
+      "exclusively",
+      "solely",
+      "limited to",
+      "perfect candidate",
+      "ideal candidate must",
+      "we only accept"
+    ]
+  },
+  "neutral_alternatives": {
+    "aggressive": [
+      "proactive",
+      "goal-oriented",
+      "results-driven"
+    ],
+    "dominant": [
+      "influential",
+      "impactful",
+      "leading"
+    ],
+    "ninja": [
+      "expert",
+      "specialist",
+      "professional"
+    ],
+    "rockstar": [
+      "talented",
+      "skilled",
+      "exceptional"
+    ],
+    "demanding": [
+      "challenging",
+      "engaging",
+      "dynamic"
+    ],
+    "must have": [
+      "preferred",
+      "desired",
+      "valuable"
+    ],
+    "required": [
+      "preferred",
+      "beneficial",
+      "advantageous"
+    ]
+  }
+}
