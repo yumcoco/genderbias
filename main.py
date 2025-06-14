@@ -258,7 +258,7 @@ def main():
 
         if st.button("🔍 Analyze Demo", type="primary"):
             with st.spinner("Analyzing..."):
-                analysis = st.session_state.analyzer.analyze_text(demo_text)
+                analysis = st.session_state.analyzer.analyze_bias_patterns(demo_text)
                 st.session_state.current_analysis = analysis
                 st.session_state.current_text = demo_text
                 st.session_state.analysis_triggered = True
@@ -281,7 +281,7 @@ def main():
             if st.button("🔍 Analyze", type="primary", disabled=not job_text.strip()):
                 if job_text.strip():
                     with st.spinner("Analyzing..."):
-                        analysis = st.session_state.analyzer.analyze_text(job_text)
+                        analysis = st.session_state.analyzer.analyze_bias_patterns(job_text)
                         st.session_state.current_analysis = analysis
                         st.session_state.current_text = job_text
                         st.session_state.analysis_triggered = True
@@ -416,7 +416,7 @@ def main():
                     st.markdown("### 📝 Before vs After Comparison")
 
                     # 分析改进版本以获取新指标
-                    improved_analysis = st.session_state.analyzer.analyze_text(improved_text)
+                    improved_analysis = st.session_state.analyzer.analyze_bias_patterns(improved_text)
 
                     # 显示指标对比
                     st.markdown("#### 📊 Impact Analysis")
