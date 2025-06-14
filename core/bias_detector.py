@@ -8,6 +8,9 @@ import sys
 import os
 from typing import Dict, List, Tuple, Any
 from dataclasses import dataclass
+from datasets import load_dataset
+from transformers import pipeline
+# from core.bias_detector_tune import fine_tune_md_gender_bias  # 自己的finetune函数
 
 # 添加项目路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -34,19 +37,54 @@ class BiasAnalysisResult:
 class BiasDetector:
     """性别偏向检测器主类"""
 
-    def __init__(self):
-        """初始化检测器，加载词汇库"""
-        self.bias_words_dict = load_bias_words()
+    def __init__(self, use_hf: bool = False, use_model: bool = True):
+        """初始化检测器，支持加载本地或Hugging Face词表"""
+        if use_hf:
+            print("🔗 Loading bias lexicon from Hugging Face...")
+            self.bias_words_dict = self._load_hf_bias_lexicon("facebook/md_gender_bias")
+        else:
+            self.bias_words_dict = load_bias_words()
+
         self.masculine_words = self._extract_words_from_dict('masculine_coded')
         self.feminine_words = self._extract_words_from_dict('feminine_coded')
         self.inclusive_words = self._extract_words_from_dict('inclusive_terms')
         self.exclusive_words = self._extract_words_from_dict('exclusive_indicators')
+
+        self.use_model = use_model
+        self.classifier = None
+
+        # if self.use_model:
+        #     print("🔍 Loading fine-tuned MD gender bias classifier...")
+        #     model, tokenizer = fine_tune_md_gender_bias()
+        #     self.classifier = pipeline("text-classification", model=model, tokenizer=tokenizer)
+
+        if self.use_model:
+            print("⚠️ Model loading skipped: fine-tune function not implemented.")
 
         print(f"Bias Detector initialized successfully")
         print(f"   Masculine words: {len(self.masculine_words)}")
         print(f"   Feminine words: {len(self.feminine_words)}")
         print(f"   Inclusive words: {len(self.inclusive_words)}")
         print(f"   Exclusive words: {len(self.exclusive_words)}")
+
+    def _load_hf_bias_lexicon(self, dataset_name: str) -> dict:
+        """从 Hugging Face 数据集中加载词汇表"""
+        dataset = load_dataset(dataset_name, split='train', trust_remote_code=True)
+        word_dict = {'masculine_coded': [], 'feminine_coded': [], 'inclusive_terms': [], 'exclusive_indicators': []}
+
+        for entry in dataset:
+            category = entry.get("bias_type", "")
+            term = entry.get("term", "").strip().lower()
+            if "masculine" in category:
+                word_dict['masculine_coded'].append(term)
+            elif "feminine" in category:
+                word_dict['feminine_coded'].append(term)
+            elif "inclusive" in category:
+                word_dict['inclusive_terms'].append(term)
+            elif "exclusive" in category:
+                word_dict['exclusive_indicators'].append(term)
+
+        return word_dict
 
     def _extract_words_from_dict(self, category: str) -> List[str]:
         """从字典中提取指定类别的词汇列表"""
@@ -237,6 +275,9 @@ class BiasDetector:
                 'medium' if analysis.inclusive_score > 1 else 'low'
             }
         }
+    
+# 若使用 Hugging Face 词表，可创建时传入 use_hf=True
+# detector = BiasDetector(use_hf=True)
 
 
 # 创建全局检测器实例
@@ -246,3 +287,4 @@ bias_detector = BiasDetector()
 def get_bias_detector() -> BiasDetector:
     """获取偏向检测器实例"""
     return bias_detector
+

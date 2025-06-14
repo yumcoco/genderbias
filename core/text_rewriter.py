@@ -9,9 +9,16 @@ import os
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
 import random
+from utils.inclusive_data_loader import load_inclusive_phrases_from_hf
 
-# 添加项目路径
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 将项目根路径加入 sys.path 以确保跨模块可导入
+def add_project_root_to_path():
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+add_project_root_to_path()
+
 
 from utils.helpers import load_bias_words, clean_text
 from core.bias_detector import get_bias_detector
@@ -40,6 +47,7 @@ class RewriteResult:
 
 class JobDescriptionRewriter:
     """基于分析结果的智能职位描述改写器"""
+    WOMEN_RATE_BOOST_FACTOR = 0.4  # 每提升1分，女性申请率提升0.4%
 
     def __init__(self):
         """初始化改写器"""
@@ -221,6 +229,8 @@ class JobDescriptionRewriter:
                 'position': 'footer'
             }
         ]
+        phrases.extend(load_inclusive_phrases_from_hf())
+        return phrases
 
     def _build_softening_patterns(self) -> List[Dict]:
         """构建语言软化模式"""
@@ -436,9 +446,14 @@ class JobDescriptionRewriter:
                 for match in reversed(matches):  # 从后往前替换，避免位置偏移
                     original = match.group()
 
-                    if '\\1' in replacement:  # 处理带组的替换
-                        new_text = re.sub(pattern, replacement, original, flags=re.IGNORECASE)
-                    else:
+                    # if '\\1' in replacement:  # 处理带组的替换
+                    #     new_text = re.sub(pattern, replacement, original, flags=re.IGNORECASE)
+                    # else:
+                    #     new_text = replacement
+
+                    try:
+                        new_text = match.expand(replacement) # match.expand() 支持带组替换，兼容性更强、更安全
+                    except Exception:
                         new_text = replacement
 
                     modified_text = modified_text[:match.start()] + new_text + modified_text[match.end():]
@@ -476,9 +491,14 @@ class JobDescriptionRewriter:
                 modified_text = phrase + '. ' + modified_text
             elif position == 'footer':
                 modified_text = modified_text + '\n\n' + phrase + '.'
-            else:  # culture, benefits, growth
-                # 在文本中间适当位置添加
-                modified_text = modified_text + '\n\n' + phrase + '.'
+            else:
+                pattern = re.compile(r'(culture|team|environment)[\s\S]{0,200}', re.IGNORECASE)
+                match = pattern.search(modified_text)
+                if match:
+                    insert_pos = match.end()
+                    modified_text = modified_text[:insert_pos] + ' ' + phrase + '.' + modified_text[insert_pos:]
+                else:
+                    modified_text = modified_text + '\n\n' + phrase + '.'
 
             changes.append(RewriteChange(
                 original='',
@@ -513,7 +533,8 @@ class JobDescriptionRewriter:
                             original_analysis['inclusivity_score'].overall_score)
 
             # 预测女性申请率变化（简化模型）
-            women_rate_change = score_change * 0.4  # 假设评分每提升1分，女性申请率提升0.4%
+            # women_rate_change = score_change * 0.4  # 假设评分每提升1分，女性申请率提升0.4%
+            women_rate_change = score_change * self.WOMEN_RATE_BOOST_FACTOR
 
             return {
                 'score_improvement': score_change,

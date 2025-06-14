@@ -1,19 +1,20 @@
-# @Versin:1.0
-# @Author:Yummy
+# @Versin:1.1
+# @Author:Yummy, Esme
 """
 数据加载器
-负责加载和预处理三个数据集
+支持本地和 HuggingFace 数据集加载，负责加载和预处理三个数据集
 """
 
 import pandas as pd
 import os
 import sys
 from typing import Optional, Tuple
+from datasets import load_dataset
 
 # 添加项目路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.helpers import load_dataset, clean_text
+from utils.helpers import load_dataset as local_load_dataset, clean_text
 
 
 class DataLoader:
@@ -30,6 +31,7 @@ class DataLoader:
         self.synthetic_df = None
         self.labeled_df = None
         self.unlabeled_df = None
+        self.huggingface_df = None
 
     def load_all_datasets(self) -> bool:
         """加载所有数据集"""
@@ -37,16 +39,11 @@ class DataLoader:
             print("📊 开始加载数据集...")
 
             # 加载合成数据集
-            synthetic_path = os.path.join(self.datasets_path, 'synthetic_vacancies_final.csv')
-            self.synthetic_df = load_dataset(synthetic_path)
-
+            self.synthetic_df = local_load_dataset(os.path.join(self.datasets_path, 'synthetic_vacancies_final.csv'))
             # 加载标注数据集
-            labeled_path = os.path.join(self.datasets_path, 'labeled_vacancies_final.csv')
-            self.labeled_df = load_dataset(labeled_path)
-
+            self.labeled_df = local_load_dataset(os.path.join(self.datasets_path, 'labeled_vacancies_final.csv'))
             # 加载未标注数据集
-            unlabeled_path = os.path.join(self.datasets_path, 'unlabeled_vacancies_final.csv')
-            self.unlabeled_df = load_dataset(unlabeled_path)
+            self.unlabeled_df = local_load_dataset(os.path.join(self.datasets_path, 'unlabeled_vacancies_final.csv'))
 
             # 验证加载结果
             if all([df is not None for df in [self.synthetic_df, self.labeled_df, self.unlabeled_df]]):
@@ -61,29 +58,41 @@ class DataLoader:
             print(f"❌ 数据加载异常: {e}")
             return False
 
+    def load_huggingface_dataset(self, dataset_name: str = "facebook/md_gender_bias", split: str = "train") -> Optional[pd.DataFrame]:
+            """从 HuggingFace 加载外部数据集"""
+            try:
+                print(f"🔗 加载 HuggingFace 数据集: {dataset_name} [{split}]...")
+                dataset = load_dataset(dataset_name, split=split, trust_remote_code=True)
+                df = dataset.to_pandas()
+
+                text_column = "text" if "text" in df.columns else df.columns[0]
+                df = df[[text_column]]
+                df.rename(columns={text_column: "description"}, inplace=True)
+
+                if "label" in dataset.column_names:
+                    df["label"] = dataset["label"]
+                if "gender_bias" in df.columns:
+                    df.rename(columns={"gender_bias": "women_proportion"}, inplace=True)
+
+                df["description"] = df["description"].apply(clean_text)
+                print(f"✅ HuggingFace 加载完成，共 {len(df)} 条记录")
+                self.huggingface_df = df
+                return df
+
+            except Exception as e:
+                print(f"❌ HuggingFace 数据加载失败: {e}")
+                return None
+
     def _print_dataset_info(self):
         """打印数据集信息"""
         print("\n📈 数据集概览:")
 
-        if self.synthetic_df is not None:
-            print(f"  • 合成数据集: {len(self.synthetic_df)} 行")
-            print(f"    列名: {list(self.synthetic_df.columns)}")
-            if 'women_proportion' in self.synthetic_df.columns:
-                women_prop = self.synthetic_df['women_proportion']
-                print(
-                    f"    女性申请比例 - 平均: {women_prop.mean():.3f}, 范围: {women_prop.min():.3f}-{women_prop.max():.3f}")
+        for name, df in [("合成数据集", self.synthetic_df), ("标注数据集", self.labeled_df), ("未标注数据集", self.unlabeled_df)]:
+            if df is not None:
+                print(f"  • {name}: {len(df)} 行, 列名: {list(df.columns)}")
+                if 'women_proportion' in df.columns:
+                    print(f"    女性申请比例 - 平均: {df['women_proportion'].mean():.3f}, 范围: {df['women_proportion'].min():.3f}-{df['women_proportion'].max():.3f}")
 
-        if self.labeled_df is not None:
-            print(f"  • 标注数据集: {len(self.labeled_df)} 行")
-            print(f"    列名: {list(self.labeled_df.columns)}")
-            if 'women_proportion' in self.labeled_df.columns:
-                women_prop = self.labeled_df['women_proportion']
-                print(
-                    f"    女性申请比例 - 平均: {women_prop.mean():.3f}, 范围: {women_prop.min():.3f}-{women_prop.max():.3f}")
-
-        if self.unlabeled_df is not None:
-            print(f"  • 未标注数据集: {len(self.unlabeled_df)} 行")
-            print(f"    列名: {list(self.unlabeled_df.columns)}")
 
     def get_combined_training_data(self) -> Optional[pd.DataFrame]:
         """获取合并的训练数据（合成+标注）"""
@@ -93,106 +102,77 @@ class DataLoader:
                 return None
 
             # 标准化列名
-            synthetic_clean = self.synthetic_df.copy()
-            labeled_clean = self.labeled_df.copy()
-
+            synthetic_df = self.synthetic_df.copy()
+            labeled_df = self.labeled_df.copy()
+            
             # 确保列名一致
-            if 'job_description' in synthetic_clean.columns:
-                synthetic_clean['description'] = synthetic_clean['job_description']
+            if 'job_description' in synthetic_df.columns:
+                synthetic_df['description'] = synthetic_df['job_description']
+            if 'description' not in labeled_df.columns and 'job_description' in labeled_df.columns:
+                labeled_df['description'] = labeled_df['job_description']
 
-            if 'description' in labeled_clean.columns:
-                labeled_clean['description'] = labeled_clean['description']
+            # # 选择相同的列
+            # common_columns = ['description', 'women_proportion']
 
-            # 选择相同的列
-            common_columns = ['description', 'women_proportion']
-
-            synthetic_subset = synthetic_clean[common_columns]
-            labeled_subset = labeled_clean[common_columns]
+            synthetic_subset = synthetic_df[['description', 'women_proportion']]
+            labeled_subset = labeled_df[['description', 'women_proportion']]
 
             # 合并数据
-            combined_df = pd.concat([synthetic_subset, labeled_subset], ignore_index=True)
-
+            combined = pd.concat([synthetic_subset, labeled_subset], ignore_index=True)
             # 清理文本数据
-            combined_df['description'] = combined_df['description'].apply(clean_text)
-
+            combined['description'] = combined['description'].apply(clean_text)
             # 移除空值
-            combined_df = combined_df.dropna()
-
-            print(f"✅ 合并训练数据: {len(combined_df)} 行")
-            return combined_df
+            combined = combined.dropna()
+            print(f"✅ 本地训练数据合并完成: {len(combined)} 条记录")
+            return combined
 
         except Exception as e:
-            print(f"❌ 合并训练数据失败: {e}")
+            print(f"❌ 本地训练数据合并失败: {e}")
             return None
 
+    def get_combined_training_data_with_hf(self) -> Optional[pd.DataFrame]:
+            """获取合并的训练数据（本地 + HuggingFace）"""
+            local_df = self.get_combined_training_data()
+            hf_df = self.huggingface_df or self.load_huggingface_dataset()
+
+            if local_df is not None and hf_df is not None:
+                combined = pd.concat([local_df, hf_df], ignore_index=True)
+                combined = combined.dropna()
+                print(f"✅ 本地+HuggingFace 训练数据合并完成: {len(combined)} 条记录")
+                return combined
+
+            return local_df or hf_df
+    
     def get_test_samples(self, n_samples: int = 5) -> list:
         """获取测试样本"""
-        try:
-            samples = []
-
-            # 从每个数据集取样本
-            if self.synthetic_df is not None and len(self.synthetic_df) > 0:
-                sample = self.synthetic_df.sample(min(2, len(self.synthetic_df)))
-                for _, row in sample.iterrows():
+        samples = []
+        for source, df in [("synthetic", self.synthetic_df), ("labeled", self.labeled_df), ("unlabeled", self.unlabeled_df)]:
+            if df is not None and len(df) > 0:
+                sampled = df.sample(min(n_samples, len(df)))
+                for _, row in sampled.iterrows():
                     text = row.get('job_description', row.get('description', ''))
                     samples.append({
                         'text': clean_text(text),
-                        'source': 'synthetic',
+                        'source': source,
                         'women_proportion': row.get('women_proportion', None)
                     })
-
-            if self.labeled_df is not None and len(self.labeled_df) > 0:
-                sample = self.labeled_df.sample(min(2, len(self.labeled_df)))
-                for _, row in sample.iterrows():
-                    text = row.get('description', row.get('job_description', ''))
-                    samples.append({
-                        'text': clean_text(text),
-                        'source': 'labeled',
-                        'women_proportion': row.get('women_proportion', None)
-                    })
-
-            if self.unlabeled_df is not None and len(self.unlabeled_df) > 0:
-                sample = self.unlabeled_df.sample(min(1, len(self.unlabeled_df)))
-                for _, row in sample.iterrows():
-                    text = row.get('job_description', row.get('description', ''))
-                    samples.append({
-                        'text': clean_text(text),
-                        'source': 'unlabeled',
-                        'women_proportion': None
-                    })
-
-            return samples[:n_samples]
-
-        except Exception as e:
-            print(f"❌ 获取测试样本失败: {e}")
-            return []
+        return samples[:n_samples]
 
     def get_dataset_stats(self) -> dict:
         """获取数据集统计信息"""
         stats = {}
-
-        if self.synthetic_df is not None:
-            stats['synthetic'] = {
-                'count': len(self.synthetic_df),
-                'columns': list(self.synthetic_df.columns),
-                'women_proportion_mean': self.synthetic_df[
-                    'women_proportion'].mean() if 'women_proportion' in self.synthetic_df.columns else None
+        for name, df in [("synthetic", self.synthetic_df), ("labeled", self.labeled_df), ("unlabeled", self.unlabeled_df)]:
+            if df is not None:
+                stats[name] = {
+                    'count': len(df),
+                    'columns': list(df.columns),
+                    'women_proportion_mean': df['women_proportion'].mean() if 'women_proportion' in df.columns else None
+                }
+        if self.huggingface_df is not None:
+            stats['huggingface'] = {
+                'count': len(self.huggingface_df),
+                'columns': list(self.huggingface_df.columns)
             }
-
-        if self.labeled_df is not None:
-            stats['labeled'] = {
-                'count': len(self.labeled_df),
-                'columns': list(self.labeled_df.columns),
-                'women_proportion_mean': self.labeled_df[
-                    'women_proportion'].mean() if 'women_proportion' in self.labeled_df.columns else None
-            }
-
-        if self.unlabeled_df is not None:
-            stats['unlabeled'] = {
-                'count': len(self.unlabeled_df),
-                'columns': list(self.unlabeled_df.columns)
-            }
-
         return stats
 
 

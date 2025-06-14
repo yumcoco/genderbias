@@ -127,7 +127,7 @@ class WomenApplicationPredictor:
             raise Exception("Failed to load datasets")
 
         # Get combined training data
-        training_df = self.data_loader.get_combined_training_data()
+        training_df = self.data_loader.get_combined_training_data_with_hf()
         if training_df is None or len(training_df) == 0:
             raise Exception("Training data is empty")
 

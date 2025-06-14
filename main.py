@@ -6,6 +6,7 @@ Simplified version to avoid recursion issues
 import streamlit as st
 import re
 from typing import Dict, List, Optional
+from core.bias_detector import BiasDetector
 
 # Set page config
 st.set_page_config(
@@ -215,8 +216,12 @@ def main():
     """, unsafe_allow_html=True)
 
     # Initialize analyzer
+    use_hf = st.sidebar.checkbox("Use HuggingFace Lexicon", value=True) # user can choose whether to start HuggingFace mode
+
     if 'analyzer' not in st.session_state:
-        st.session_state.analyzer = SimpleBiasAnalyzer()
+        st.session_state.analyzer = BiasDetector(use_hf=use_hf)
+
+
 
     # Initialize analysis trigger
     if 'analysis_triggered' not in st.session_state:
