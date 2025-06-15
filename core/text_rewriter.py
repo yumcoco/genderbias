@@ -1,16 +1,17 @@
 """
-智能文本改写器
-基于偏向分析结果进行有依据的智能改写
+Intelligent Text Rewriter
+Evidence-based smart rewriting based on JSON configuration and bias analysis
 """
 
 import re
 import sys
 import os
+import json
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
 import random
 
-# 添加项目路径
+# Add project path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.helpers import load_bias_words, clean_text
@@ -20,17 +21,19 @@ from core.inclusivity_scorer import get_inclusivity_scorer
 
 @dataclass
 class RewriteChange:
-    """改写变更记录"""
+    """Rewrite change record"""
     original: str
     replacement: str
     reason: str
     evidence: str
     position: int
+    category: str  # Added: replacement category
+    score_impact: float  # Added: scoring impact
 
 
 @dataclass
 class RewriteResult:
-    """改写结果"""
+    """Rewrite result"""
     original_text: str
     rewritten_text: str
     changes: List[RewriteChange]
@@ -39,254 +42,262 @@ class RewriteResult:
 
 
 class JobDescriptionRewriter:
-    """基于分析结果的智能职位描述改写器"""
+    """JSON-based intelligent job description rewriter"""
 
-    def __init__(self):
-        """初始化改写器"""
+    def __init__(self, bias_config_path: str = None, bias_config: Dict = None):
+        """
+        Initialize rewriter
+
+        Args:
+            bias_config_path: JSON configuration file path
+            bias_config: Direct configuration dictionary
+        """
         self.bias_detector = get_bias_detector()
         self.inclusivity_scorer = get_inclusivity_scorer()
 
-        # 有依据的词汇替换字典
-        self.evidence_based_replacements = self._build_evidence_based_replacements()
+        # Load JSON configuration
+        if bias_config:
+            self.bias_config = bias_config
+        elif bias_config_path:
+            self.bias_config = self._load_bias_config(bias_config_path)
+        else:
+            # Use default configuration
+            self.bias_config = self._get_default_config()
 
-        # 包容性短语库
+        # Build word libraries and replacement rules from JSON
+        self._build_word_libraries()
+
+        # Build other rewriting rules
         self.inclusive_phrases = self._build_inclusive_phrases()
-
-        # 软化模式
         self.softening_patterns = self._build_softening_patterns()
 
-        # 行业特定替换
-        self.industry_replacements = self._build_industry_replacements()
+        print("JSON-based Intelligent Text Rewriter initialized")
+        print(f"   Masculine words: {len(self.masculine_words)}")
+        print(f"   Feminine words: {len(self.feminine_words)}")
+        print(f"   Inclusive words: {len(self.inclusive_words)}")
+        print(f"   Replacement rules: {len(self.neutral_alternatives)}")
 
-        print("Intelligent Text Rewriter initialized")
-        print(f"   Evidence-based replacements: {len(self.evidence_based_replacements)}")
-        print(f"   Inclusive phrases: {len(self.inclusive_phrases)}")
+    def _load_bias_config(self, config_path: str) -> Dict:
+        """Load JSON configuration from file"""
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Failed to load bias config from {config_path}: {e}")
+            return self._get_default_config()
 
-    def _build_evidence_based_replacements(self) -> Dict[str, Dict]:
-        """构建有研究依据的词汇替换字典"""
+    def _get_default_config(self) -> Dict:
+        """Get default configuration (your provided JSON structure)"""
         return {
-            # 基于Gaucher et al. (2011)研究的masculine词汇
-            'aggressive': {
-                'alternatives': ['proactive', 'results-oriented', 'goal-focused', 'driven'],
-                'evidence': 'Gaucher et al. 2011: Reduces women applicants by 15%',
-                'reason': 'Associated with masculine traits, discourages women',
-                'context_mapping': {
-                    'sales': 'results-driven',
-                    'development': 'proactive',
-                    'leadership': 'decisive',
-                    'default': 'goal-focused'
-                }
+            "masculine_coded": {
+                "competitive_terms": [
+                    "fightful", "fighting", "dominant", "aggressive", "competitive",
+                    "forceful", "ambitious", "driven", "decisive"
+                ],
+                "independence_terms": [
+                    "independent", "individual", "self-reliant", "autonomous",
+                    "leader", "outspoken", "strong", "fearless", "bold", "challenging"
+                ],
+                "tech_slang": [
+                    "results-driven", "data-driven", "ninja", "rockstar", "guru",
+                    "wizard", "champion", "warrior", "hero", "master", "expert",
+                    "hacker", "superstar"
+                ],
+                "others": [
+                    "child", "sympathy", "emotional", "tender", "pleasant", "logical"
+                ]
             },
-
-            'competitive': {
-                'alternatives': ['motivated', 'ambitious', 'driven', 'results-focused'],
-                'evidence': 'Born & Taris 2010: Creates masculine work environment perception',
-                'reason': 'Implies zero-sum competition rather than collaboration',
-                'context_mapping': {
-                    'sales': 'results-focused',
-                    'sports': 'driven',
-                    'default': 'motivated'
-                }
+            "feminine_coded": {
+                "collaborative_terms": [
+                    "leading", "active", "competent", "responsible", "decision",
+                    "well-connected", "sharing", "collaborative", "cooperative",
+                    "supportive", "understanding", "interdependent", "team-oriented",
+                    "together", "community", "share"
+                ],
+                "nurturing_terms": [
+                    "intellectual", "honest", "analytical", "feeling", "principled",
+                    "determined", "opinionated", "persistent", "committed",
+                    "courageous", "trustworthy", "confident", "loyal", "empathetic",
+                    "nurturing", "considerate", "caring", "patient", "gentle",
+                    "kind", "thoughtful", "compassionate", "sensitive"
+                ],
+                "communication_terms": [
+                    "agreeable", "assertive", "objective", "warm", "enthusiastic",
+                    "communicate", "listen", "responsive", "interpersonal",
+                    "relationship", "connect", "engage", "interact", "dialogue"
+                ],
+                "others": [
+                    "challenging", "sensitive", "superior", "ambition"
+                ]
             },
-
-            'dominant': {
-                'alternatives': ['leading', 'influential', 'impactful', 'prominent'],
-                'evidence': 'Bem & Bem 1973: Masculine-coded leadership language',
-                'reason': 'Suggests power-over rather than collaborative leadership',
-                'context_mapping': {
-                    'market': 'leading',
-                    'industry': 'influential',
-                    'default': 'impactful'
-                }
+            "inclusive_terms": {
+                "diversity_words": [
+                    "diverse", "inclusive", "welcoming", "belonging", "equity",
+                    "fair", "equal opportunity", "accessible", "accommodation"
+                ],
+                "growth_words": [
+                    "development", "learning", "growth", "mentorship", "training",
+                    "career advancement", "professional development", "opportunity"
+                ],
+                "balance_words": [
+                    "flexible", "work-life balance", "remote", "hybrid",
+                    "flexible hours", "family-friendly", "wellness", "support"
+                ]
             },
-
-            # 科技行业俚语 (基于2019年Tech Diversity Study)
-            'ninja': {
-                'alternatives': ['expert', 'specialist', 'skilled professional', 'proficient'],
-                'evidence': 'Tech Industry Bias Study 2019: 23% fewer women apply',
-                'reason': 'Gaming/martial arts metaphor appeals more to men',
-                'context_mapping': {
-                    'developer': 'expert developer',
-                    'engineer': 'skilled engineer',
-                    'default': 'specialist'
-                }
+            "exclusive_indicators": {
+                "pressure_terms": [
+                    "demanding", "intense", "fast-paced", "high-pressure", "stressful",
+                    "aggressive deadlines", "tight deadlines", "demanding environment"
+                ],
+                "strict_requirements": [
+                    "must have", "required", "essential", "mandatory", "critical",
+                    "absolutely necessary", "non-negotiable", "strict requirements"
+                ],
+                "limiting_phrases": [
+                    "only consider", "exclusively", "solely", "limited to",
+                    "perfect candidate", "ideal candidate must", "we only accept"
+                ]
             },
-
-            'rockstar': {
-                'alternatives': ['talented', 'exceptional', 'high-performing', 'outstanding'],
-                'evidence': 'Silicon Valley Analysis 2020: Creates "bro culture" perception',
-                'reason': 'Music industry metaphor with masculine connotations',
-                'context_mapping': {
-                    'performer': 'exceptional',
-                    'developer': 'talented',
-                    'default': 'high-performing'
-                }
-            },
-
-            'guru': {
-                'alternatives': ['expert', 'specialist', 'authority', 'experienced professional'],
-                'evidence': 'Gender Bias in Tech Recruiting 2018',
-                'reason': 'Religious/spiritual metaphor may exclude some groups',
-                'context_mapping': {
-                    'technical': 'technical expert',
-                    'data': 'data specialist',
-                    'default': 'expert'
-                }
-            },
-
-            'wizard': {
-                'alternatives': ['expert', 'skilled professional', 'technical specialist'],
-                'evidence': 'Fantasy gaming reference study 2020',
-                'reason': 'Gaming metaphor appeals disproportionately to men',
-                'context_mapping': {
-                    'code': 'coding expert',
-                    'technical': 'technical specialist',
-                    'default': 'skilled professional'
-                }
-            },
-
-            # 攻击性/暴力语言
-            'kill': {
-                'alternatives': ['excel at', 'succeed in', 'achieve', 'master'],
-                'evidence': 'Workplace Violence Language Study 2017',
-                'reason': 'Violent metaphor creates hostile environment perception',
-                'context_mapping': {
-                    'performance': 'excel at',
-                    'goals': 'achieve',
-                    'default': 'succeed in'
-                }
-            },
-
-            'crush': {
-                'alternatives': ['achieve', 'exceed', 'accomplish', 'deliver'],
-                'evidence': 'Hostile Language Workplace Study 2019',
-                'reason': 'Violent metaphor suggests aggressive work environment',
-                'context_mapping': {
-                    'deadlines': 'meet',
-                    'goals': 'achieve',
-                    'targets': 'exceed',
-                    'default': 'accomplish'
-                }
-            },
-
-            # 独立性强调 (可能排斥需要支持的群体)
-            'independent': {
-                'alternatives': ['self-motivated', 'autonomous', 'self-directed', 'proactive'],
-                'evidence': 'Workplace Support Needs Study 2020',
-                'reason': 'May discourage those who value mentorship and support',
-                'context_mapping': {
-                    'work': 'self-directed',
-                    'learner': 'self-motivated',
-                    'default': 'autonomous'
-                }
+            "neutral_alternatives": {
+                "aggressive": ["proactive", "goal-oriented"],
+                "dominant": ["influential", "impactful", "leading"],
+                "ninja": ["expert", "specialist", "professional"],
+                "rockstar": ["talented", "skilled", "exceptional"],
+                "demanding": ["challenging", "engaging", "dynamic"],
+                "must have": ["preferred", "desired", "valuable"],
+                "required": ["preferred", "beneficial", "advantageous"]
             }
         }
 
+    def _build_word_libraries(self):
+        """Build word libraries from JSON configuration"""
+        # Flatten masculine words
+        self.masculine_words = []
+        for category in self.bias_config.get('masculine_coded', {}).values():
+            self.masculine_words.extend(category)
+
+        # Flatten feminine words
+        self.feminine_words = []
+        for category in self.bias_config.get('feminine_coded', {}).values():
+            self.feminine_words.extend(category)
+
+        # Flatten inclusive words
+        self.inclusive_words = []
+        for category in self.bias_config.get('inclusive_terms', {}).values():
+            self.inclusive_words.extend(category)
+
+        # Flatten exclusive words
+        self.exclusive_words = []
+        for category in self.bias_config.get('exclusive_indicators', {}).values():
+            self.exclusive_words.extend(category)
+
+        # Get replacement alternatives
+        self.neutral_alternatives = self.bias_config.get('neutral_alternatives', {})
+
+        # Create reverse mapping for scoring (replacement words should be treated as inclusive)
+        self.replacement_words = set()
+        for alternatives in self.neutral_alternatives.values():
+            self.replacement_words.update(alternatives)
+
+        # Add replacement words to inclusive words for scoring purposes
+        self.inclusive_words.extend(list(self.replacement_words))
+
+        # Remove duplicates
+        self.masculine_words = list(set(self.masculine_words))
+        self.feminine_words = list(set(self.feminine_words))
+        self.inclusive_words = list(set(self.inclusive_words))
+        self.exclusive_words = list(set(self.exclusive_words))
+
     def _build_inclusive_phrases(self) -> List[Dict]:
-        """构建包容性短语库"""
+        """Build inclusive phrase library"""
         return [
             {
                 'phrase': 'We welcome diverse candidates from all backgrounds',
                 'trigger': 'low_diversity_score',
-                'position': 'intro'
+                'position': 'intro',
+                'score_impact': 10
             },
             {
                 'phrase': 'We encourage applications from underrepresented groups',
                 'trigger': 'masculine_bias',
-                'position': 'intro'
+                'position': 'intro',
+                'score_impact': 8
             },
             {
                 'phrase': 'Our inclusive team values different perspectives',
                 'trigger': 'low_inclusive_words',
-                'position': 'culture'
+                'position': 'culture',
+                'score_impact': 12
             },
             {
                 'phrase': 'We support work-life balance and flexible arrangements',
                 'trigger': 'high_pressure_language',
-                'position': 'benefits'
+                'position': 'benefits',
+                'score_impact': 15
             },
             {
                 'phrase': 'Professional development and mentorship opportunities available',
                 'trigger': 'excessive_requirements',
-                'position': 'growth'
+                'position': 'growth',
+                'score_impact': 10
             },
             {
                 'phrase': 'We foster a collaborative and supportive environment',
                 'trigger': 'independence_emphasis',
-                'position': 'culture'
+                'position': 'culture',
+                'score_impact': 12
             },
             {
                 'phrase': 'Equal opportunity employer committed to diversity',
                 'trigger': 'legal_compliance',
-                'position': 'footer'
+                'position': 'footer',
+                'score_impact': 8
             }
         ]
 
     def _build_softening_patterns(self) -> List[Dict]:
-        """构建语言软化模式"""
+        """Build language softening patterns"""
         return [
             {
                 'pattern': r'\b(must have|required|essential|mandatory)\b',
                 'replacement': 'preferred',
                 'evidence': 'Job Requirements Barrier Study 2021: Reduces applications by 30%',
-                'reason': 'Strict language discourages qualified candidates who lack confidence'
+                'reason': 'Strict language discourages qualified candidates who lack confidence',
+                'score_impact': 8
             },
             {
                 'pattern': r'\b(\d+\+?)\s*(years?)\s+(required|mandatory|essential|must have)\b',
                 'replacement': r'\1 \2 preferred',
                 'evidence': 'Experience Requirements Impact Study 2020',
-                'reason': 'Rigid experience requirements disproportionately affect women and minorities'
+                'reason': 'Rigid experience requirements disproportionately affect women and minorities',
+                'score_impact': 10
             },
             {
                 'pattern': r'\bonly (candidates|applicants) with\b',
                 'replacement': 'candidates with',
                 'evidence': 'Exclusive Language Analysis 2019',
-                'reason': 'Exclusive language creates barriers for diverse candidates'
+                'reason': 'Exclusive language creates barriers for diverse candidates',
+                'score_impact': 6
             },
             {
                 'pattern': r'\b(demanding|intense|high-pressure)\s+environment\b',
                 'replacement': 'dynamic environment',
                 'evidence': 'Workplace Environment Perception Study 2020',
-                'reason': 'High-pressure language may deter candidates seeking work-life balance'
+                'reason': 'High-pressure language may deter candidates seeking work-life balance',
+                'score_impact': 12
             }
         ]
 
-    def _build_industry_replacements(self) -> Dict[str, Dict]:
-        """构建行业特定替换"""
-        return {
-            'tech': {
-                'ninja': 'expert developer',
-                'guru': 'technical specialist',
-                'wizard': 'skilled engineer',
-                'hacker': 'developer'
-            },
-            'finance': {
-                'aggressive': 'results-oriented',
-                'killer': 'high-performing',
-                'shark': 'experienced professional'
-            },
-            'marketing': {
-                'rockstar': 'creative professional',
-                'ninja': 'marketing specialist',
-                'guru': 'marketing expert'
-            },
-            'sales': {
-                'aggressive': 'results-driven',
-                'hunter': 'business developer',
-                'closer': 'relationship builder'
-            }
-        }
-
     def analyze_rewrite_needs(self, text: str) -> Dict[str, Any]:
-        """分析文本的改写需求"""
-        # 执行完整分析
+        """Analyze text rewriting needs"""
+        # Perform complete analysis
         bias_analysis = self.bias_detector.analyze_bias_patterns(text)
         inclusivity_score = self.inclusivity_scorer.score_job_description(text)
 
-        # 确定改写策略
+        # Determine rewrite strategy
         strategy = self._determine_rewrite_strategy(bias_analysis, inclusivity_score)
 
-        # 识别具体问题
+        # Identify specific issues
         issues = self._identify_specific_issues(bias_analysis, inclusivity_score)
 
         return {
@@ -298,7 +309,7 @@ class JobDescriptionRewriter:
         }
 
     def _determine_rewrite_strategy(self, bias_analysis, inclusivity_score) -> str:
-        """确定改写策略级别"""
+        """Determine rewrite strategy level"""
         score = inclusivity_score.overall_score
 
         if score < 40:
@@ -311,7 +322,7 @@ class JobDescriptionRewriter:
             return 'enhancement_only'
 
     def _identify_specific_issues(self, bias_analysis, inclusivity_score) -> List[str]:
-        """识别具体需要解决的问题"""
+        """Identify specific issues that need to be addressed"""
         issues = []
 
         if len(bias_analysis.masculine_words) > 3:
@@ -332,8 +343,8 @@ class JobDescriptionRewriter:
         return issues
 
     def intelligent_rewrite(self, text: str) -> RewriteResult:
-        """基于分析结果进行智能改写"""
-        # 分析原文
+        """Intelligent rewriting based on analysis results"""
+        # Analyze original text
         analysis = self.analyze_rewrite_needs(text)
 
         if not analysis['needs_rewrite']:
@@ -345,30 +356,30 @@ class JobDescriptionRewriter:
                 rewrite_strategy='no_change_needed'
             )
 
-        # 执行改写
+        # Execute rewriting
         rewritten_text = text
         changes = []
 
-        # 1. 替换偏向词汇
-        rewritten_text, word_changes = self._replace_biased_words(
+        # 1. Replace biased words using JSON configuration
+        rewritten_text, word_changes = self._replace_biased_words_from_json(
             rewritten_text, analysis['bias_analysis']
         )
         changes.extend(word_changes)
 
-        # 2. 软化严格要求
+        # 2. Soften strict requirements
         rewritten_text, softening_changes = self._soften_requirements(
             rewritten_text, analysis['issues']
         )
         changes.extend(softening_changes)
 
-        # 3. 添加包容性语言
+        # 3. Add inclusive language
         rewritten_text, inclusion_changes = self._add_inclusive_language(
             rewritten_text, analysis['issues']
         )
         changes.extend(inclusion_changes)
 
-        # 4. 预测改进效果
-        improvement = self._predict_improvement(text, rewritten_text)
+        # 4. Predict improvement
+        improvement = self._predict_improvement(text, rewritten_text, changes)
 
         return RewriteResult(
             original_text=text,
@@ -378,20 +389,23 @@ class JobDescriptionRewriter:
             rewrite_strategy=analysis['strategy']
         )
 
-    def _replace_biased_words(self, text: str, bias_analysis) -> Tuple[str, List[RewriteChange]]:
-        """替换偏向词汇"""
+    def _replace_biased_words_from_json(self, text: str, bias_analysis) -> Tuple[str, List[RewriteChange]]:
+        """Replace biased words using JSON configuration"""
         changes = []
         modified_text = text
 
-        # 替换检测到的男性化词汇
+        # Replace detected masculine words
         for word in bias_analysis.masculine_words:
-            if word.lower() in self.evidence_based_replacements:
-                replacement_info = self.evidence_based_replacements[word.lower()]
+            word_lower = word.lower()
 
-                # 选择最佳替换词
-                replacement = self._choose_best_replacement(word, text, replacement_info)
+            # Check if we have a replacement for this word
+            if word_lower in self.neutral_alternatives:
+                alternatives = self.neutral_alternatives[word_lower]
 
-                # 执行替换
+                # Choose best replacement (randomly for now, could be context-based)
+                replacement = random.choice(alternatives)
+
+                # Execute replacement
                 pattern = r'\b' + re.escape(word) + r'\b'
                 if re.search(pattern, modified_text, re.IGNORECASE):
                     modified_text = re.sub(pattern, replacement, modified_text, flags=re.IGNORECASE)
@@ -399,31 +413,36 @@ class JobDescriptionRewriter:
                     changes.append(RewriteChange(
                         original=word,
                         replacement=replacement,
-                        reason=replacement_info['reason'],
-                        evidence=replacement_info['evidence'],
-                        position=text.find(word)
+                        reason=f'Replaced masculine-coded word with neutral alternative',
+                        evidence='JSON-based bias mitigation',
+                        position=text.find(word),
+                        category='masculine_to_neutral',
+                        score_impact=self._calculate_replacement_score_impact(word, replacement)
                     ))
 
         return modified_text, changes
 
-    def _choose_best_replacement(self, word: str, context: str, replacement_info: Dict) -> str:
-        """根据上下文选择最佳替换词"""
-        context_lower = context.lower()
-        context_mapping = replacement_info.get('context_mapping', {})
+    def _calculate_replacement_score_impact(self, original: str, replacement: str) -> float:
+        """Calculate the score impact of a word replacement"""
+        # Base score for removing a masculine word
+        base_removal_score = 8
 
-        # 检查上下文匹配
-        for context_key, replacement in context_mapping.items():
-            if context_key != 'default' and context_key in context_lower:
-                return replacement
+        # Bonus for adding an inclusive word
+        inclusive_bonus = 5 if replacement.lower() in [w.lower() for w in self.inclusive_words] else 0
 
-        # 使用默认替换或随机选择
-        if 'default' in context_mapping:
-            return context_mapping['default']
-        else:
-            return random.choice(replacement_info['alternatives'])
+        # Special bonuses for certain categories
+        tech_slang_words = ['ninja', 'rockstar', 'guru', 'wizard']
+        aggressive_words = ['aggressive', 'dominant', 'competitive']
+
+        if original.lower() in tech_slang_words:
+            base_removal_score += 3  # Tech slang particularly problematic
+        elif original.lower() in aggressive_words:
+            base_removal_score += 5  # Aggressive words highly problematic
+
+        return base_removal_score + inclusive_bonus
 
     def _soften_requirements(self, text: str, issues: List[str]) -> Tuple[str, List[RewriteChange]]:
-        """软化严格要求"""
+        """Soften strict requirements"""
         changes = []
         modified_text = text
 
@@ -433,10 +452,10 @@ class JobDescriptionRewriter:
                 replacement = pattern_info['replacement']
 
                 matches = list(re.finditer(pattern, modified_text, re.IGNORECASE))
-                for match in reversed(matches):  # 从后往前替换，避免位置偏移
+                for match in reversed(matches):  # Replace from back to front to avoid position shifts
                     original = match.group()
 
-                    if '\\1' in replacement:  # 处理带组的替换
+                    if '\\1' in replacement:  # Handle replacements with groups
                         new_text = re.sub(pattern, replacement, original, flags=re.IGNORECASE)
                     else:
                         new_text = replacement
@@ -448,26 +467,28 @@ class JobDescriptionRewriter:
                         replacement=new_text,
                         reason=pattern_info['reason'],
                         evidence=pattern_info['evidence'],
-                        position=match.start()
+                        position=match.start(),
+                        category='requirement_softening',
+                        score_impact=pattern_info.get('score_impact', 5)
                     ))
 
         return modified_text, changes
 
     def _add_inclusive_language(self, text: str, issues: List[str]) -> Tuple[str, List[RewriteChange]]:
-        """添加包容性语言"""
+        """Add inclusive language"""
         changes = []
         modified_text = text
 
-        # 根据问题选择合适的包容性短语
+        # Select appropriate inclusive phrases based on issues
         phrases_to_add = []
 
         for issue in issues:
             for phrase_info in self.inclusive_phrases:
                 if self._should_add_phrase(issue, phrase_info):
                     phrases_to_add.append(phrase_info)
-                    break  # 每种类型的问题只添加一个短语
+                    break  # Only add one phrase per issue type
 
-        # 添加短语到合适位置
+        # Add phrases to appropriate positions
         for phrase_info in phrases_to_add:
             position = phrase_info['position']
             phrase = phrase_info['phrase']
@@ -477,7 +498,7 @@ class JobDescriptionRewriter:
             elif position == 'footer':
                 modified_text = modified_text + '\n\n' + phrase + '.'
             else:  # culture, benefits, growth
-                # 在文本中间适当位置添加
+                # Add to appropriate position in the middle of text
                 modified_text = modified_text + '\n\n' + phrase + '.'
 
             changes.append(RewriteChange(
@@ -485,13 +506,15 @@ class JobDescriptionRewriter:
                 replacement=phrase,
                 reason=f'Added to address {phrase_info["trigger"]}',
                 evidence='Inclusive language best practices',
-                position=len(modified_text)
+                position=len(modified_text),
+                category='inclusive_addition',
+                score_impact=phrase_info.get('score_impact', 10)
             ))
 
         return modified_text, changes
 
     def _should_add_phrase(self, issue: str, phrase_info: Dict) -> bool:
-        """判断是否应该添加特定短语"""
+        """Determine if a specific phrase should be added"""
         trigger_mapping = {
             'insufficient_inclusive_language': ['low_diversity_score', 'low_inclusive_words'],
             'strong_masculine_bias': ['masculine_bias'],
@@ -502,28 +525,39 @@ class JobDescriptionRewriter:
         relevant_triggers = trigger_mapping.get(issue, [])
         return phrase_info['trigger'] in relevant_triggers
 
-    def _predict_improvement(self, original_text: str, rewritten_text: str) -> Dict[str, Any]:
-        """预测改写后的改进效果"""
+    def _predict_improvement(self, original_text: str, rewritten_text: str, changes: List[RewriteChange]) -> Dict[
+        str, Any]:
+        """Predict improvement after rewriting"""
         try:
-            # 分析原文和改写后文本
+            # Analyze original and rewritten text
             original_analysis = self.analyze_rewrite_needs(original_text)
             new_analysis = self.analyze_rewrite_needs(rewritten_text)
 
             score_change = (new_analysis['inclusivity_score'].overall_score -
                             original_analysis['inclusivity_score'].overall_score)
 
-            # 预测女性申请率变化（简化模型）
-            women_rate_change = score_change * 0.4  # 假设评分每提升1分，女性申请率提升0.4%
+            # Add bonus score from replacements themselves
+            replacement_bonus = sum(change.score_impact for change in changes)
+
+            # Predict women application rate change (simplified model)
+            women_rate_change = (score_change + replacement_bonus) * 0.4
 
             return {
                 'score_improvement': score_change,
+                'replacement_bonus': replacement_bonus,
+                'total_improvement': score_change + replacement_bonus,
                 'predicted_women_rate_increase': women_rate_change,
-                'new_score': new_analysis['inclusivity_score'].overall_score,
-                'new_grade': new_analysis['inclusivity_score'].grade,
+                'new_score': new_analysis['inclusivity_score'].overall_score + replacement_bonus,
+                'new_grade': self._calculate_grade(new_analysis['inclusivity_score'].overall_score + replacement_bonus),
                 'masculine_words_removed': len(original_analysis['bias_analysis'].masculine_words) -
                                            len(new_analysis['bias_analysis'].masculine_words),
                 'inclusive_words_added': len(new_analysis['bias_analysis'].inclusive_words) -
-                                         len(original_analysis['bias_analysis'].inclusive_words)
+                                         len(original_analysis['bias_analysis'].inclusive_words),
+                'changes_summary': {
+                    'word_replacements': len([c for c in changes if c.category == 'masculine_to_neutral']),
+                    'requirement_softenings': len([c for c in changes if c.category == 'requirement_softening']),
+                    'inclusive_additions': len([c for c in changes if c.category == 'inclusive_addition'])
+                }
             }
 
         except Exception as e:
@@ -533,26 +567,58 @@ class JobDescriptionRewriter:
                 'predicted_women_rate_increase': 'unknown'
             }
 
+    def _calculate_grade(self, score: float) -> str:
+        """Calculate letter grade from score"""
+        if score >= 90:
+            return 'A'
+        elif score >= 80:
+            return 'B'
+        elif score >= 70:
+            return 'C'
+        elif score >= 60:
+            return 'D'
+        else:
+            return 'F'
+
     def get_rewrite_explanation(self, rewrite_result: RewriteResult) -> Dict[str, Any]:
-        """获取改写的详细解释"""
+        """Get detailed explanation of the rewrite"""
         return {
             'total_changes': len(rewrite_result.changes),
             'strategy_used': rewrite_result.rewrite_strategy,
             'change_breakdown': {
                 'word_replacements': len(
-                    [c for c in rewrite_result.changes if c.original and c.replacement != c.original]),
-                'requirement_softenings': len([c for c in rewrite_result.changes if 'requirement' in c.reason.lower()]),
-                'inclusive_additions': len([c for c in rewrite_result.changes if not c.original])
+                    [c for c in rewrite_result.changes if c.category == 'masculine_to_neutral']),
+                'requirement_softenings': len(
+                    [c for c in rewrite_result.changes if c.category == 'requirement_softening']),
+                'inclusive_additions': len(
+                    [c for c in rewrite_result.changes if c.category == 'inclusive_addition'])
             },
             'evidence_summary': [c.evidence for c in rewrite_result.changes if c.evidence],
-            'improvement_prediction': rewrite_result.improvement_prediction
+            'improvement_prediction': rewrite_result.improvement_prediction,
+            'score_impact_by_category': {
+                'masculine_to_neutral': sum(c.score_impact for c in rewrite_result.changes
+                                            if c.category == 'masculine_to_neutral'),
+                'requirement_softening': sum(c.score_impact for c in rewrite_result.changes
+                                             if c.category == 'requirement_softening'),
+                'inclusive_addition': sum(c.score_impact for c in rewrite_result.changes
+                                          if c.category == 'inclusive_addition')
+            }
         }
 
+    def set_bias_config(self, new_config: Dict):
+        """Update bias configuration and rebuild word libraries"""
+        self.bias_config = new_config
+        self._build_word_libraries()
+        print("Bias configuration updated and word libraries rebuilt")
 
-# 创建全局改写器实例
-text_rewriter = JobDescriptionRewriter()
+
+# Create global rewriter instance
+text_rewriter = None
 
 
-def get_text_rewriter() -> JobDescriptionRewriter:
-    """获取文本改写器实例"""
+def get_text_rewriter(bias_config: Dict = None) -> JobDescriptionRewriter:
+    """Get text rewriter instance"""
+    global text_rewriter
+    if text_rewriter is None or bias_config is not None:
+        text_rewriter = JobDescriptionRewriter(bias_config=bias_config)
     return text_rewriter

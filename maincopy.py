@@ -1,69 +1,46 @@
 """
-GenderLens AI - Clean Main Application
-Fixed version with proper function ordering
+Minimal Gender Bias Analysis App
+Simplified version to avoid recursion issues
 """
 
 import streamlit as st
-import sys
-import os
-import pandas as pd
 import re
-import hashlib
-from typing import Optional, Dict, Any
+from typing import Dict, List, Optional
 
-# Add project path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-# Import core modules
-from core.bias_detector import get_bias_detector
-from core.inclusivity_scorer import get_inclusivity_scorer
-from core.prediction_model import get_women_predictor
-from core.text_rewriter import get_text_rewriter
-from utils.helpers import validate_text_input
-
-# Page configuration
+# Set page config
 st.set_page_config(
-    page_title="Decode Gender Bias",
+    page_title="Gender Bias Analysis",
     page_icon="🔍",
     layout="wide"
 )
 
-# Enhanced CSS with highlighting styles
+# Simple CSS
 st.markdown("""
 <style>
     .header-box {
-        background: #6366f1;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
         color: white;
         padding: 20px;
         border-radius: 10px;
         text-align: center;
         margin-bottom: 20px;
     }
+
     .metric-box {
         background: white;
         padding: 15px;
         border-radius: 8px;
         border: 1px solid #e5e7eb;
         margin: 10px 0;
+        text-align: center;
     }
 
-    /* Bias word highlighting */
     .highlight-masculine {
         background-color: #fca5a5;
         color: #991b1b;
         padding: 2px 4px;
         border-radius: 3px;
         font-weight: bold;
-        border: 1px solid #f87171;
-    }
-
-    .highlight-feminine {
-        background-color: #a7f3d0;
-        color: #065f46;
-        padding: 2px 4px;
-        border-radius: 3px;
-        font-weight: bold;
-        border: 1px solid #6ee7b7;
     }
 
     .highlight-inclusive {
@@ -72,7 +49,6 @@ st.markdown("""
         padding: 2px 4px;
         border-radius: 3px;
         font-weight: bold;
-        border: 1px solid #93c5fd;
     }
 
     .highlight-exclusive {
@@ -81,330 +57,174 @@ st.markdown("""
         padding: 2px 4px;
         border-radius: 3px;
         font-weight: bold;
-        border: 1px solid #fdba74;
     }
 
-    /* Text display boxes */
-    .text-display-box {
+    .text-display {
         background: #f9fafb;
         padding: 15px;
         border-radius: 8px;
         border: 1px solid #e5e7eb;
         line-height: 1.6;
         margin: 10px 0;
-        font-size: 14px;
-    }
-
-    /* Legend styles */
-    .legend-item {
-        display: inline-block;
-        margin-right: 15px;
-        margin-bottom: 5px;
-        font-size: 12px;
-    }
-
-    /* Improved text comparison */
-    .comparison-container {
-        background: white;
-        border-radius: 8px;
-        border: 1px solid #e5e7eb;
-        overflow: hidden;
-    }
-
-    .comparison-header {
-        background: #f3f4f6;
-        padding: 10px 15px;
-        font-weight: bold;
-        border-bottom: 1px solid #e5e7eb;
-    }
-
-    .comparison-content {
-        padding: 15px;
     }
 </style>
 """, unsafe_allow_html=True)
 
+# Built-in word lists to avoid external dependencies
+MASCULINE_WORDS = [
+    'aggressive', 'assertive', 'competitive', 'dominant', 'ambitious',
+    'independent', 'leader', 'outgoing', 'confident', 'strong',
+    'analytical', 'decisive', 'objective', 'challenging', 'demanding',
+    'driven', 'determined', 'fearless', 'ninja', 'rockstar'
+]
 
-def safe_get_models():
-    """Safely get models without caching decorators"""
-    if 'models_initialized' not in st.session_state:
-        try:
-            with st.spinner("Loading models..."):
-                st.session_state.bias_detector = get_bias_detector()
-                st.session_state.inclusivity_scorer = get_inclusivity_scorer()
-                st.session_state.women_predictor = get_women_predictor()
-                st.session_state.text_rewriter = get_text_rewriter()
-                st.session_state.models_initialized = True
-            st.success("Models loaded successfully!")
-        except Exception as e:
-            st.error(f"Failed to load models: {str(e)}")
-            return False
-    return True
+INCLUSIVE_WORDS = [
+    'collaborative', 'cooperative', 'supportive', 'team', 'together',
+    'diverse', 'inclusive', 'welcome', 'encourage', 'flexible',
+    'work-life balance', 'mentorship', 'growth', 'learning'
+]
+
+EXCLUSIVE_WORDS = [
+    'must have', 'required', 'mandatory', 'expert', 'guru',
+    'dominate', 'crush', 'kill', 'destroy', 'annihilate'
+]
 
 
-def highlight_bias_words(text: str, bias_analysis) -> str:
-    """Apply color highlighting to bias words in text"""
-    highlighted_text = text
+class SimpleBiasAnalyzer:
+    """Simple bias analyzer without external dependencies"""
 
-    # Highlight masculine words (red)
-    if hasattr(bias_analysis, 'masculine_words') and bias_analysis.masculine_words:
-        for word in bias_analysis.masculine_words:
-            pattern = r'\b' + re.escape(word) + r'\b'
-            highlighted_text = re.sub(
-                pattern,
-                f'<span class="highlight-masculine">{word}</span>',
-                highlighted_text,
-                flags=re.IGNORECASE
+    def __init__(self):
+        self.masculine_words = MASCULINE_WORDS
+        self.inclusive_words = INCLUSIVE_WORDS
+        self.exclusive_words = EXCLUSIVE_WORDS
+
+    def analyze_text(self, text: str) -> Dict:
+        """Analyze text for bias patterns"""
+        text_lower = text.lower()
+
+        # Find words
+        found_masculine = [word for word in self.masculine_words if word in text_lower]
+        found_inclusive = [word for word in self.inclusive_words if word in text_lower]
+        found_exclusive = [word for word in self.exclusive_words if word in text_lower]
+
+        # Calculate bias direction
+        masculine_count = len(found_masculine)
+        inclusive_count = len(found_inclusive)
+
+        if masculine_count > inclusive_count:
+            bias_direction = "Masculine"
+        elif inclusive_count > masculine_count:
+            bias_direction = "Inclusive"
+        else:
+            bias_direction = "Neutral"
+
+        # Calculate inclusivity score
+        total_words = len(text.split())
+        bias_penalty = (masculine_count + len(found_exclusive)) * 10
+        inclusive_bonus = inclusive_count * 15
+        base_score = max(0, 70 - bias_penalty + inclusive_bonus)
+        inclusivity_score = min(100, base_score)
+
+        # Predict women application rate
+        women_rate = max(10, min(80, 50 - masculine_count * 5 + inclusive_count * 8))
+
+        return {
+            'masculine_words': found_masculine,
+            'inclusive_words': found_inclusive,
+            'exclusive_words': found_exclusive,
+            'bias_direction': bias_direction,
+            'inclusivity_score': inclusivity_score,
+            'women_application_rate': women_rate,
+            'recommendations': self._generate_recommendations(
+                found_masculine, found_inclusive, found_exclusive
+            )
+        }
+
+    def _generate_recommendations(self, masculine, inclusive, exclusive) -> List[str]:
+        """Generate improvement recommendations"""
+        recommendations = []
+
+        if len(masculine) > 2:
+            recommendations.append(
+                f"Consider replacing masculine-coded words: {', '.join(masculine[:3])}"
             )
 
-    # Highlight feminine words (green)
-    if hasattr(bias_analysis, 'feminine_words') and bias_analysis.feminine_words:
-        for word in bias_analysis.feminine_words:
-            pattern = r'\b' + re.escape(word) + r'\b'
-            highlighted_text = re.sub(
-                pattern,
-                f'<span class="highlight-feminine">{word}</span>',
-                highlighted_text,
-                flags=re.IGNORECASE
+        if len(inclusive) < 2:
+            recommendations.append(
+                "Add more inclusive language like 'collaborative', 'supportive', 'diverse'"
             )
 
-    # Highlight inclusive words (blue)
-    if hasattr(bias_analysis, 'inclusive_words') and bias_analysis.inclusive_words:
-        for word in bias_analysis.inclusive_words:
-            pattern = r'\b' + re.escape(word) + r'\b'
-            highlighted_text = re.sub(
-                pattern,
-                f'<span class="highlight-inclusive">{word}</span>',
-                highlighted_text,
-                flags=re.IGNORECASE
+        if len(exclusive) > 0:
+            recommendations.append(
+                f"Soften exclusive requirements: {', '.join(exclusive[:2])}"
             )
 
-    # Highlight exclusive words (orange)
-    if hasattr(bias_analysis, 'exclusive_words') and bias_analysis.exclusive_words:
-        for word in bias_analysis.exclusive_words:
-            pattern = r'\b' + re.escape(word) + r'\b'
-            highlighted_text = re.sub(
-                pattern,
-                f'<span class="highlight-exclusive">{word}</span>',
-                highlighted_text,
-                flags=re.IGNORECASE
-            )
+        if not recommendations:
+            recommendations.append("This job description has good gender balance!")
 
-    return highlighted_text
+        return recommendations
 
 
-def highlight_rewrite_changes(original_text: str, rewritten_text: str, changes=None) -> tuple:
-    """Highlight changes between original and rewritten text"""
+def highlight_text(text: str, analysis: Dict) -> str:
+    """Apply highlighting to text"""
+    highlighted = text
 
-    if changes:
-        highlighted_original = original_text
-        highlighted_rewritten = rewritten_text
+    # Highlight masculine words
+    for word in analysis['masculine_words']:
+        pattern = r'\b' + re.escape(word) + r'\b'
+        highlighted = re.sub(
+            pattern,
+            f'<span class="highlight-masculine">{word}</span>',
+            highlighted,
+            flags=re.IGNORECASE
+        )
 
-        for change in changes:
-            if hasattr(change, 'original') and hasattr(change, 'replacement'):
-                original_word = change.original
-                replacement_word = change.replacement
+    # Highlight inclusive words
+    for word in analysis['inclusive_words']:
+        pattern = r'\b' + re.escape(word) + r'\b'
+        highlighted = re.sub(
+            pattern,
+            f'<span class="highlight-inclusive">{word}</span>',
+            highlighted,
+            flags=re.IGNORECASE
+        )
 
-                if original_word and replacement_word and original_word != replacement_word:
-                    # Highlight removed words in original (red background)
-                    pattern = r'\b' + re.escape(original_word) + r'\b'
-                    highlighted_original = re.sub(
-                        pattern,
-                        f'<span style="background-color: #fecaca; text-decoration: line-through; color: #991b1b; padding: 2px 4px; border-radius: 3px;">{original_word}</span>',
-                        highlighted_original,
-                        flags=re.IGNORECASE
-                    )
+    # Highlight exclusive words
+    for word in analysis['exclusive_words']:
+        pattern = r'\b' + re.escape(word) + r'\b'
+        highlighted = re.sub(
+            pattern,
+            f'<span class="highlight-exclusive">{word}</span>',
+            highlighted,
+            flags=re.IGNORECASE
+        )
 
-                    # Highlight new words in rewritten (green background)
-                    pattern = r'\b' + re.escape(replacement_word) + r'\b'
-                    highlighted_rewritten = re.sub(
-                        pattern,
-                        f'<span style="background-color: #dcfce7; color: #166534; padding: 2px 4px; border-radius: 3px; font-weight: bold;">{replacement_word}</span>',
-                        highlighted_rewritten,
-                        flags=re.IGNORECASE
-                    )
-
-        return highlighted_original, highlighted_rewritten
-    else:
-        return original_text, rewritten_text
-
-
-def display_legend():
-    """Display color legend for bias word highlighting"""
-    st.markdown("""
-    <div style="margin: 10px 0; padding: 10px; background: #f9fafb; border-radius: 8px;">
-        <strong>Legend:</strong><br>
-        <span class="legend-item"><span class="highlight-masculine">Masculine words</span> - May discourage women applicants</span>
-        <span class="legend-item"><span class="highlight-feminine">Feminine words</span> - May appeal more to women</span><br>
-        <span class="legend-item"><span class="highlight-inclusive">Inclusive words</span> - Welcoming to all candidates</span>
-        <span class="legend-item"><span class="highlight-exclusive">Exclusive words</span> - May create barriers</span>
-    </div>
-    """, unsafe_allow_html=True)
+    return highlighted
 
 
-def simple_analyze(text: str) -> Optional[Dict[str, Any]]:
-    """Simple analysis function without complex caching"""
-    if not safe_get_models():
-        return None
+def main():
+    """Main application"""
 
-    try:
-        with st.spinner("Analyzing..."):
-            # Get bias analysis
-            bias_analysis = st.session_state.bias_detector.analyze_bias_patterns(text)
-
-            # Get inclusivity score
-            inclusivity_score = st.session_state.inclusivity_scorer.score_job_description(text)
-
-            # Get prediction
-            prediction = st.session_state.women_predictor.predict_women_proportion(text)
-
-            return {
-                'text': text,
-                'bias_analysis': bias_analysis,
-                'inclusivity_score': inclusivity_score,
-                'prediction': prediction
-            }
-
-    except Exception as e:
-        st.error(f"Analysis failed: {str(e)}")
-        return None
-
-
-def display_simple_header():
-    """Simple header without complex markdown"""
+    # Header
     st.markdown("""
     <div class="header-box">
-        <h1>Decode Gender Bias</h1>
+        <h1>🔍 Gender Bias Analysis</h1>
         <h3>Inclusive Hiring Assistant</h3>
         <p>Analyze job descriptions for gender bias</p>
     </div>
     """, unsafe_allow_html=True)
 
+    # Initialize analyzer
+    if 'analyzer' not in st.session_state:
+        st.session_state.analyzer = SimpleBiasAnalyzer()
 
-def display_simple_metrics(analysis):
-    """Display metrics in simple format"""
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        score = analysis['inclusivity_score'].overall_score
-        st.markdown(f"""
-        <div class="metric-box">
-            <h4>Inclusivity Score</h4>
-            <h2 style="color: #059669;">{score:.1f}/100</h2>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col2:
-        percentage = analysis['prediction']['percentage']
-        st.markdown(f"""
-        <div class="metric-box">
-            <h4>Women Applicants</h4>
-            <h2 style="color: #3b82f6;">{percentage:.1f}%</h2>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col3:
-        bias = analysis['bias_analysis'].overall_bias
-        st.markdown(f"""
-        <div class="metric-box">
-            <h4>Bias Direction</h4>
-            <h2 style="color: #6b7280;">{bias.title()}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-
-
-def display_simple_analysis(analysis):
-    """Display analysis with highlighted text"""
-    tab1, tab2, tab3 = st.tabs(["📊 Highlighted Analysis", "📝 Word Lists", "🚀 Recommendations"])
-
-    with tab1:
-        st.subheader("Job Description with Bias Highlighting")
-
-        # Display legend first
-        display_legend()
-
-        # Get highlighted text
-        bias = analysis['bias_analysis']
-        highlighted_text = highlight_bias_words(analysis['text'], bias)
-
-        # Display highlighted text
-        st.markdown(f"""
-        <div class="text-display-box">
-            {highlighted_text}
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Word count summary
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            masculine_count = len(bias.masculine_words) if hasattr(bias, 'masculine_words') else 0
-            st.metric("Masculine Words", masculine_count)
-        with col2:
-            feminine_count = len(bias.feminine_words) if hasattr(bias, 'feminine_words') else 0
-            st.metric("Feminine Words", feminine_count)
-        with col3:
-            inclusive_count = len(bias.inclusive_words) if hasattr(bias, 'inclusive_words') else 0
-            st.metric("Inclusive Words", inclusive_count)
-        with col4:
-            exclusive_count = len(bias.exclusive_words) if hasattr(bias, 'exclusive_words') else 0
-            st.metric("Exclusive Words", exclusive_count)
-
-    with tab2:
-        st.subheader("Detected Word Categories")
-        bias = analysis['bias_analysis']
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if hasattr(bias, 'masculine_words') and bias.masculine_words:
-                st.markdown("**🔴 Masculine Words:**")
-                for word in bias.masculine_words:
-                    st.markdown(f"• <span class='highlight-masculine'>{word}</span>", unsafe_allow_html=True)
-
-            if hasattr(bias, 'inclusive_words') and bias.inclusive_words:
-                st.markdown("**🔵 Inclusive Words:**")
-                for word in bias.inclusive_words:
-                    st.markdown(f"• <span class='highlight-inclusive'>{word}</span>", unsafe_allow_html=True)
-
-        with col2:
-            if hasattr(bias, 'feminine_words') and bias.feminine_words:
-                st.markdown("**🟢 Feminine Words:**")
-                for word in bias.feminine_words:
-                    st.markdown(f"• <span class='highlight-feminine'>{word}</span>", unsafe_allow_html=True)
-
-            if hasattr(bias, 'exclusive_words') and bias.exclusive_words:
-                st.markdown("**🟠 Exclusive Words:**")
-                for word in bias.exclusive_words:
-                    st.markdown(f"• <span class='highlight-exclusive'>{word}</span>", unsafe_allow_html=True)
-
-        if not any([
-            hasattr(bias, 'masculine_words') and bias.masculine_words,
-            hasattr(bias, 'feminine_words') and bias.feminine_words,
-            hasattr(bias, 'inclusive_words') and bias.inclusive_words,
-            hasattr(bias, 'exclusive_words') and bias.exclusive_words
-        ]):
-            st.info("No significant bias words detected in this text.")
-
-    with tab3:
-        st.subheader("Improvement Recommendations")
-        recommendations = analysis['inclusivity_score'].recommendations
-
-        if recommendations:
-            for i, rec in enumerate(recommendations, 1):
-                st.write(f"{i}. {rec}")
-        else:
-            st.success("✅ This job description is well-balanced!")
-
-
-def main():
-    """Main application function - simplified"""
-
-    # Display header
-    display_simple_header()
+    # Initialize analysis trigger
+    if 'analysis_triggered' not in st.session_state:
+        st.session_state.analysis_triggered = False
 
     # Sidebar
     with st.sidebar:
-        st.header("Analysis Mode")
+        st.header("📝 Analysis Mode")
 
         mode = st.selectbox("Choose Mode", ["Single Analysis", "Demo Examples"])
 
@@ -417,180 +237,319 @@ def main():
         # Clear button
         if st.button("Clear All"):
             for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
+                if key != 'analyzer':  # Keep the analyzer
+                    del st.session_state[key]
+            st.session_state.analysis_triggered = False
 
     # Main content
     if mode == "Demo Examples":
         demo_texts = {
-            "Biased Example": "We need an aggressive ninja developer with strong leadership skills who can dominate the competition.",
-            "Inclusive Example": "We welcome a collaborative developer to join our diverse team with flexible work arrangements."
+            "Biased Example": "We need an aggressive ninja developer with strong leadership skills who can dominate the competition and crush deadlines.",
+            "Inclusive Example": "We welcome a collaborative developer to join our diverse team. We offer flexible work arrangements and mentorship opportunities."
         }
 
         demo_text = demo_texts[demo_option]
-        st.text_area("Demo Job Description", demo_text, height=100, disabled=True, key="demo_text_area")
+        st.text_area("Demo Job Description", demo_text, height=100, disabled=True, key="demo_text")
 
-        if st.button("Analyze Demo", type="primary"):
-            result = simple_analyze(demo_text)
-            if result:
-                st.session_state.current_analysis = result
-                st.rerun()
+        if st.button("🔍 Analyze Demo", type="primary"):
+            with st.spinner("Analyzing..."):
+                analysis = st.session_state.analyzer.analyze_text(demo_text)
+                st.session_state.current_analysis = analysis
+                st.session_state.current_text = demo_text
+                st.session_state.analysis_triggered = True
+                st.success("✅ Analysis completed!")
 
     else:
         # Normal analysis mode
-        st.subheader("Enter Job Description")
+        st.subheader("📝 Enter Job Description")
 
         job_text = st.text_area(
             "Paste your job description here:",
             height=150,
             placeholder="Enter the job description to analyze...",
-            key="main_job_text_area"
+            key="job_input"
         )
 
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("Analyze", type="primary", disabled=not job_text.strip()):
+            if st.button("🔍 Analyze", type="primary", disabled=not job_text.strip()):
                 if job_text.strip():
-                    is_valid, message = validate_text_input(job_text)
-                    if not is_valid:
-                        st.error(message)
-                    else:
-                        result = simple_analyze(job_text)
-                        if result:
-                            st.session_state.current_analysis = result
-                            st.rerun()
+                    with st.spinner("Analyzing..."):
+                        analysis = st.session_state.analyzer.analyze_text(job_text)
+                        st.session_state.current_analysis = analysis
+                        st.session_state.current_text = job_text
+                        st.session_state.analysis_triggered = True
+                        st.success("✅ Analysis completed!")
 
         with col2:
-            if st.button("Clear"):
+            if st.button("🗑️ Clear"):
                 if 'current_analysis' in st.session_state:
                     del st.session_state.current_analysis
-                st.rerun()
+                if 'current_text' in st.session_state:
+                    del st.session_state.current_text
+                st.session_state.analysis_triggered = False
 
-    # Display results
-    if 'current_analysis' in st.session_state:
+    # Display results - 现在会立即显示
+    if st.session_state.get(
+            'analysis_triggered') and 'current_analysis' in st.session_state and 'current_text' in st.session_state:
         st.markdown("---")
+
         analysis = st.session_state.current_analysis
+        text = st.session_state.current_text
 
         # Display metrics
-        display_simple_metrics(analysis)
+        st.subheader("📊 Analysis Results")
 
-        st.markdown("---")
+        col1, col2, col3 = st.columns(3)
 
-        # Display analysis
-        display_simple_analysis(analysis)
+        with col1:
+            st.markdown(f"""
+            <div class="metric-box">
+                <h4>Inclusivity Score</h4>
+                <h2 style="color: #059669;">{analysis['inclusivity_score']:.0f}/100</h2>
+            </div>
+            """, unsafe_allow_html=True)
 
-        # Rewriter section with enhanced comparison
-        st.markdown("---")
-        st.subheader("✨ AI Text Rewriter")
+        with col2:
+            st.markdown(f"""
+            <div class="metric-box">
+                <h4>Women Applicants</h4>
+                <h2 style="color: #3b82f6;">{analysis['women_application_rate']:.0f}%</h2>
+            </div>
+            """, unsafe_allow_html=True)
 
-        score = analysis['inclusivity_score'].overall_score
-        if score < 70:
-            st.warning(f"⚠️ Inclusivity score is {score:.1f}/100. AI rewriting recommended.")
-        else:
-            st.info(f"✅ Good score ({score:.1f}/100), but AI can still optimize further.")
+        with col3:
+            st.markdown(f"""
+            <div class="metric-box">
+                <h4>Bias Direction</h4>
+                <h2 style="color: #6b7280;">{analysis['bias_direction']}</h2>
+            </div>
+            """, unsafe_allow_html=True)
 
-        if st.button("🤖 Generate Improved Version", type="primary"):
-            try:
-                with st.spinner("Rewriting text..."):
-                    rewriter = st.session_state.text_rewriter
-                    result = rewriter.intelligent_rewrite(analysis['text'])
+        # Tabs for detailed analysis
+        tab1, tab2, tab3 = st.tabs(["🎨 Highlighted Text", "📋 Word Analysis", "💡 Recommendations"])
 
-                    if result:
-                        st.success("✅ Rewriting completed!")
+        with tab1:
+            st.subheader("Job Description with Highlighting")
 
-                        # Enhanced comparison with highlighting
-                        st.markdown("### 📝 Before vs After Comparison")
+            # Legend
+            st.markdown("""
+            **Legend:**
+            <span class="highlight-masculine">Masculine words</span> • 
+            <span class="highlight-inclusive">Inclusive words</span> • 
+            <span class="highlight-exclusive">Exclusive words</span>
+            """, unsafe_allow_html=True)
 
-                        # Get highlighted versions
-                        original_highlighted, rewritten_highlighted = highlight_rewrite_changes(
-                            result.original_text,
-                            result.rewritten_text,
-                            getattr(result, 'changes', None)
+            # Highlighted text
+            highlighted_text = highlight_text(text, analysis)
+            st.markdown(f'<div class="text-display">{highlighted_text}</div>', unsafe_allow_html=True)
+
+        with tab2:
+            st.subheader("Detected Words")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                if analysis['masculine_words']:
+                    st.markdown("**🔴 Masculine Words:**")
+                    for word in analysis['masculine_words']:
+                        st.write(f"• {word}")
+
+                if analysis['inclusive_words']:
+                    st.markdown("**🔵 Inclusive Words:**")
+                    for word in analysis['inclusive_words']:
+                        st.write(f"• {word}")
+
+            with col2:
+                if analysis['exclusive_words']:
+                    st.markdown("**🟠 Exclusive Words:**")
+                    for word in analysis['exclusive_words']:
+                        st.write(f"• {word}")
+
+                # Summary stats
+                st.markdown("**📈 Statistics:**")
+                st.write(f"• Total masculine words: {len(analysis['masculine_words'])}")
+                st.write(f"• Total inclusive words: {len(analysis['inclusive_words'])}")
+                st.write(f"• Total exclusive words: {len(analysis['exclusive_words'])}")
+
+        with tab3:
+            st.subheader("Improvement Recommendations")
+
+            for i, recommendation in enumerate(analysis['recommendations'], 1):
+                st.write(f"{i}. {recommendation}")
+
+            # Simple rewriter suggestion
+            if analysis['inclusivity_score'] < 70:
+                st.warning("💡 Consider rewriting this job description to be more inclusive")
+
+                improved_text = text
+                # Simple replacements
+                replacements = {
+                    'aggressive': 'proactive',
+                    'ninja': 'skilled',
+                    'rockstar': 'talented',
+                    'dominate': 'excel in',
+                    'crush': 'meet',
+                    'must have': 'preferred',
+                    'required': 'desired'
+                }
+
+                for old, new in replacements.items():
+                    improved_text = re.sub(
+                        r'\b' + re.escape(old) + r'\b',
+                        new,
+                        improved_text,
+                        flags=re.IGNORECASE
+                    )
+
+                # Add inclusive language
+                if 'collaborative' not in improved_text.lower():
+                    improved_text += " We value collaborative team members."
+
+                if improved_text != text:
+                    st.markdown("### 📝 Before vs After Comparison")
+
+                    # 分析改进版本以获取新指标
+                    improved_analysis = st.session_state.analyzer.analyze_text(improved_text)
+
+                    # 显示指标对比
+                    st.markdown("#### 📊 Impact Analysis")
+                    col_metric1, col_metric2, col_metric3 = st.columns(3)
+
+                    with col_metric1:
+                        score_change = improved_analysis['inclusivity_score'] - analysis['inclusivity_score']
+                        st.metric(
+                            "Inclusivity Score",
+                            f"{improved_analysis['inclusivity_score']:.0f}/100",
+                            f"{score_change:+.0f}" if score_change != 0 else "No change",
+                            delta_color="normal"
                         )
 
-                        col1, col2 = st.columns(2)
+                    with col_metric2:
+                        rate_change = improved_analysis['women_application_rate'] - analysis['women_application_rate']
+                        st.metric(
+                            "Women Applicants",
+                            f"{improved_analysis['women_application_rate']:.0f}%",
+                            f"{rate_change:+.0f}%" if rate_change != 0 else "No change",
+                            delta_color="normal"
+                        )
 
-                        with col1:
-                            st.markdown("""
-                            <div class="comparison-container">
-                                <div class="comparison-header">📋 Original Text</div>
-                                <div class="comparison-content">
-                            """ + original_highlighted + """
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                    with col_metric3:
+                        # 计算偏见方向改善
+                        bias_improvement = "✅ Improved" if improved_analysis['bias_direction'] != analysis[
+                            'bias_direction'] else "Same"
+                        st.metric(
+                            "Bias Direction",
+                            improved_analysis['bias_direction'],
+                            bias_improvement if bias_improvement != "Same" else None
+                        )
 
-                        with col2:
-                            st.markdown("""
-                            <div class="comparison-container">
-                                <div class="comparison-header">✨ Improved Text</div>
-                                <div class="comparison-content">
-                            """ + rewritten_highlighted + """
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                    # 文本对比显示
+                    st.markdown("#### 📝 Text Comparison")
 
-                        # Show changes summary if available
-                        if hasattr(result, 'changes') and result.changes:
-                            st.markdown("### 🔍 Changes Made")
+                    col_orig, col_improved = st.columns(2)
 
-                            changes_to_show = [c for c in result.changes
-                                               if hasattr(c, 'original') and hasattr(c, 'replacement')
-                                               and c.original != c.replacement][:5]
+                    with col_orig:
+                        st.markdown("**📋 Original Version**")
+                        # 高亮原文中被替换的词汇
+                        highlighted_original = text
+                        replacements = {
+                            'aggressive': 'proactive',
+                            'ninja': 'skilled',
+                            'rockstar': 'talented',
+                            'dominate': 'excel in',
+                            'crush': 'meet',
+                            'must have': 'preferred',
+                            'required': 'desired'
+                        }
 
-                            if changes_to_show:
-                                for i, change in enumerate(changes_to_show, 1):
-                                    st.markdown(f"**{i}.** `{change.original}` → `{change.replacement}`")
-                                    if hasattr(change, 'reason'):
-                                        st.caption(f"Reason: {change.reason}")
+                        for old, new in replacements.items():
+                            if old.lower() in text.lower():
+                                pattern = r'\b' + re.escape(old) + r'\b'
+                                highlighted_original = re.sub(
+                                    pattern,
+                                    f'<span style="background-color: #fecaca; text-decoration: line-through; color: #991b1b; padding: 2px 4px; border-radius: 3px;">{old}</span>',
+                                    highlighted_original,
+                                    flags=re.IGNORECASE
+                                )
 
-                                if len(result.changes) > 5:
-                                    st.caption(f"... and {len(result.changes) - 5} more changes")
+                        st.markdown(f'<div class="text-display">{highlighted_original}</div>', unsafe_allow_html=True)
 
-                        # Action buttons
-                        st.markdown("### 🎯 Next Steps")
-                        col_btn1, col_btn2, col_btn3 = st.columns(3)
+                        # 原始指标
+                        st.markdown("**Original Metrics:**")
+                        st.write(f"• Inclusivity Score: {analysis['inclusivity_score']:.0f}/100")
+                        st.write(f"• Women Applicants: {analysis['women_application_rate']:.0f}%")
+                        st.write(f"• Bias Direction: {analysis['bias_direction']}")
 
-                        with col_btn1:
-                            if st.button("🔍 Analyze Improved Version"):
-                                improved_analysis = simple_analyze(result.rewritten_text)
-                                if improved_analysis:
-                                    st.session_state.current_analysis = improved_analysis
-                                    st.success("✅ Re-analysis completed!")
-                                    st.rerun()
+                    with col_improved:
+                        st.markdown("**✨ Improved Version**")
+                        # 高亮改进文本中的新词汇
+                        highlighted_improved = improved_text
 
-                        with col_btn2:
-                            # Download comparison
-                            comparison_data = pd.DataFrame({
-                                'Metric': ['Original Text', 'Improved Text', 'Changes Made'],
-                                'Value': [result.original_text, result.rewritten_text,
-                                          str(len(getattr(result, 'changes', [])))]
-                            })
-                            csv = comparison_data.to_csv(index=False)
-                            st.download_button(
-                                "📥 Download Comparison",
-                                csv,
-                                file_name="text_improvement_comparison.csv",
-                                mime="text/csv"
+                        for old, new in replacements.items():
+                            if new.lower() in improved_text.lower():
+                                pattern = r'\b' + re.escape(new) + r'\b'
+                                highlighted_improved = re.sub(
+                                    pattern,
+                                    f'<span style="background-color: #dcfce7; color: #166534; padding: 2px 4px; border-radius: 3px; font-weight: bold;">{new}</span>',
+                                    highlighted_improved,
+                                    flags=re.IGNORECASE
+                                )
+
+                        # 高亮新增的包容性语言
+                        if 'collaborative' in improved_text.lower() and 'collaborative' not in text.lower():
+                            highlighted_improved = re.sub(
+                                r'\bcollaborative\b',
+                                '<span style="background-color: #bfdbfe; color: #1e40af; padding: 2px 4px; border-radius: 3px; font-weight: bold;">collaborative</span>',
+                                highlighted_improved,
+                                flags=re.IGNORECASE
                             )
 
-                        with col_btn3:
-                            if st.button("🔄 Try Alternative"):
-                                try:
-                                    with st.spinner("Generating alternative..."):
-                                        alt_result = rewriter.intelligent_rewrite(analysis['text'])
-                                        if alt_result:
-                                            st.rerun()
-                                except Exception as e:
-                                    st.error(f"Failed to generate alternative: {str(e)}")
+                        st.markdown(
+                            f'<div class="text-display" style="border-left: 4px solid #10b981;">{highlighted_improved}</div>',
+                            unsafe_allow_html=True)
 
-            except Exception as e:
-                st.error(f"Rewriting failed: {str(e)}")
+                        # 改进后指标
+                        st.markdown("**Improved Metrics:**")
+                        st.write(
+                            f"• Inclusivity Score: {improved_analysis['inclusivity_score']:.0f}/100 ({score_change:+.0f})")
+                        st.write(
+                            f"• Women Applicants: {improved_analysis['women_application_rate']:.0f}% ({rate_change:+.0f}%)")
+                        st.write(f"• Bias Direction: {improved_analysis['bias_direction']}")
 
-    # Simple footer
+                    # 显示具体改动
+                    st.markdown("#### 🔍 Changes Made")
+                    changes_made = []
+                    for old, new in replacements.items():
+                        if old.lower() in text.lower():
+                            changes_made.append(f"'{old}' → '{new}'")
+
+                    if 'collaborative' in improved_text.lower() and 'collaborative' not in text.lower():
+                        changes_made.append("Added inclusive language: 'We value collaborative team members'")
+
+                    if changes_made:
+                        for i, change in enumerate(changes_made, 1):
+                            st.write(f"{i}. {change}")
+                    else:
+                        st.info("No specific word replacements made.")
+
+                    # 改进总结
+                    if score_change > 0 or rate_change > 0:
+                        st.success(
+                            f"🎉 **Improvement Summary:** Inclusivity score increased by {score_change:.0f} points, potential women applicants increased by {rate_change:.0f}%")
+
+                    # 分析改进版本按钮
+                    if st.button("🔍 Analyze Improved Version"):
+                        st.session_state.current_analysis = improved_analysis
+                        st.session_state.current_text = improved_text
+                        st.session_state.analysis_triggered = True
+                        st.success("✅ Switched to improved version analysis!")
+                        # 不需要 rerun，会自动更新显示
+
+    # Footer
     st.markdown("---")
-    st.markdown("**Decode Gender Bias** - Making hiring more inclusive")
+    st.markdown("**Gender Bias Analysis Tool** - Making hiring more inclusive")
 
 
 if __name__ == "__main__":
@@ -598,4 +557,10 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         st.error(f"Application error: {str(e)}")
-        st.info("Try refreshing the page or clearing the cache.")
+        st.info("Please refresh the page to restart the application.")
+
+        # Debug info
+        with st.expander("Debug Information"):
+            import traceback
+
+            st.code(traceback.format_exc())

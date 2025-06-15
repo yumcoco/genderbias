@@ -1,16 +1,16 @@
 {
   "masculine_coded": {
     "competitive_terms": [
+      "fightful",
+      "fighting",
+      "dominant",
       "aggressive",
-      "assertive",
       "competitive",
       "dominant",
       "forceful",
       "ambitious",
       "driven",
-      "determined",
-      "decisive",
-      "confident"
+      "decisive"
     ],
     "independence_terms": [
       "independent",
@@ -25,6 +25,8 @@
       "challenging"
     ],
     "tech_slang": [
+      "results-driven",
+      "data-driven",
       "ninja",
       "rockstar",
       "guru",
@@ -36,10 +38,25 @@
       "expert",
       "hacker",
       "superstar"
+    ],
+    "others":[
+      "child",
+      "sympathy",
+      "emotional",
+      "tender",
+      "pleasant",
+      "logical"
     ]
   },
   "feminine_coded": {
     "collaborative_terms": [
+      "leading",
+      "active",
+      "competent",
+      "responsible",
+      "decision",
+      "well-connected",
+      "sharing",
       "collaborative",
       "cooperative",
       "supportive",
@@ -51,6 +68,19 @@
       "share"
     ],
     "nurturing_terms": [
+      "intellectual",
+      "honest",
+      "analytical",
+      "feeling",
+      "principled",
+      "determined",
+      "opinionated",
+      "persistent",
+      "committed",
+      "courageous",
+      "trustworthy",
+      "confident",
+      "loyal",
       "empathetic",
       "nurturing",
       "considerate",
@@ -63,6 +93,11 @@
       "sensitive"
     ],
     "communication_terms": [
+      "agreeable",
+      "assertive",
+      "objective",
+      "warm",
+      "enthusiastic",
       "communicate",
       "listen",
       "responsive",
@@ -72,6 +107,12 @@
       "engage",
       "interact",
       "dialogue"
+    ],
+    "others":[
+      "challenging",
+      "sensitive",
+      "superior",
+      "ambition"
     ]
   },
   "inclusive_terms": {
@@ -141,8 +182,7 @@
   "neutral_alternatives": {
     "aggressive": [
       "proactive",
-      "goal-oriented",
-      "results-driven"
+      "goal-oriented"
     ],
     "dominant": [
       "influential",
