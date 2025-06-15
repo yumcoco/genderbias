@@ -109,14 +109,11 @@ Our tool has been tested on both synthetic and real-world job descriptions, show
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd gender-bias-analysis
-
 # Install dependencies
 pip install streamlit
 
 # Run the application
-streamlit run app.py
+streamlit run main.py
 ```
 
 Navigate to the web interface and start analyzing job descriptions immediately with our demo examples or your own content.
