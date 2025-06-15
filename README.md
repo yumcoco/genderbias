@@ -4,7 +4,7 @@
 
 A comprehensive web application for analyzing and improving gender bias in job descriptions, developed for the Randstad Digital Inclusive Hiring Challenge.
 
-##Project Overview
+## Project Overview
 
 This project addresses the critical challenge of gender bias in hiring by creating an AI-powered tool that detects, analyzes, and reduces biased language in job postings. Built for the Hack4Her hackathon's "Inclusive Hiring: Detecting Gender Bias in Job Vacancies" challenge, our solution helps organizations write more inclusive job descriptions to attract diverse talent, particularly women in tech and finance.
 
@@ -56,7 +56,7 @@ Research shows that subtle differences in job description wording—tone, requir
 - **Visualization**: Real-time highlighting and comparison tools
 - **Algorithm**: Custom scoring system based on linguistic research
 
-##Key Highlights
+## Key Highlights
 
 ### **Evidence-Based Approach**
 - Built on peer-reviewed research (Gaucher et al. 2011, Born & Taris 2010)
@@ -80,7 +80,7 @@ Research shows that subtle differences in job description wording—tone, requir
 - JSON-based configuration for rule updates
 - Portable codebase for integration into existing HR systems
 
-##Social Impact
+## Social Impact
 
 ### **Promoting Gender Equality in Tech & Finance**
 GENIA directly addresses women's underrepresentation in technology and finance sectors by:
