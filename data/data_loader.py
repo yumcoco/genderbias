@@ -1,6 +1,5 @@
 """
-Updated Gender Bias Analysis App
-Now supports JSON configuration and improved rewriting
+GENIA@P4G
 """
 
 import streamlit as st

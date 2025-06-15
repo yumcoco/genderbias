@@ -1,6 +1,6 @@
 """
 Intelligent Text Rewriter
-Evidence-based smart rewriting based on JSON configuration and bias analysis
+@P4G
 """
 
 import re

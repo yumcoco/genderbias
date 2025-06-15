@@ -1,6 +1,5 @@
 """
-包容性评分器
-计算职位描述的包容性评分，输出英文结果
+Inclusivity_Scorer @ P4G
 """
 
 import sys
@@ -9,7 +8,6 @@ from typing import Dict, List, Tuple
 import math
 from dataclasses import dataclass
 
-# 添加项目路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.constants import SCORING_WEIGHTS, SCORE_LEVELS
@@ -19,7 +17,7 @@ from core.bias_detector import get_bias_detector
 
 @dataclass
 class InclusivityScore:
-    """包容性评分结果数据类"""
+
     overall_score: float
     component_scores: Dict[str, float]
     grade: str
@@ -30,10 +28,8 @@ class InclusivityScore:
 
 
 class InclusivityScorer:
-    """包容性评分器主类"""
 
     def __init__(self):
-        """初始化评分器"""
         self.bias_detector = get_bias_detector()
         self.weights = SCORING_WEIGHTS
         self.score_levels = SCORE_LEVELS
@@ -41,36 +37,26 @@ class InclusivityScorer:
         print("Inclusivity Scorer initialized successfully")
 
     def calculate_component_scores(self, text: str) -> Dict[str, float]:
-        """计算各个组件的评分"""
-        # 获取偏向分析结果
         bias_analysis = self.bias_detector.analyze_bias_patterns(text)
 
-        # 获取文本统计信息
         text_stats = get_text_statistics(text)
 
-        # 获取情感评分
         sentiment_score = calculate_sentiment(text)
 
-        # 计算各个组件的评分
         scores = {}
-
-        # 1. 语言平衡性评分 (40%)
         masculine_penalty = len(bias_analysis.masculine_words) * self.weights['masculine_penalty']
         feminine_bonus = len(bias_analysis.feminine_words) * self.weights['feminine_bonus']
         language_balance = 50 + feminine_bonus + masculine_penalty
         scores['language_balance'] = max(0, min(100, language_balance))
 
-        # 2. 包容性词汇评分 (25%)
         inclusive_bonus = len(bias_analysis.inclusive_words) * self.weights['inclusive_bonus']
         inclusivity_base = 30 + inclusive_bonus
         scores['inclusivity'] = max(0, min(100, inclusivity_base))
 
-        # 3. 要求开放性评分 (20%)
         exclusive_penalty = len(bias_analysis.exclusive_words) * self.weights['exclusive_penalty']
         openness_base = 60 + exclusive_penalty
         scores['openness'] = max(0, min(100, openness_base))
 
-        # 4. 文本质量评分 (10%)
         word_count = text_stats['word_count']
         if 50 <= word_count <= 300:
             length_score = 80
@@ -83,14 +69,12 @@ class InclusivityScorer:
 
         scores['text_quality'] = length_score
 
-        # 5. 情感基调评分 (5%)
         sentiment_base = 50 + (sentiment_score * 50)
         scores['sentiment'] = max(0, min(100, sentiment_base))
 
         return scores
 
     def calculate_overall_score(self, component_scores: Dict[str, float]) -> float:
-        """计算总体评分，使用加权平均"""
         weights = {
             'language_balance': 0.40,
             'inclusivity': 0.25,
@@ -108,7 +92,6 @@ class InclusivityScorer:
         return round(overall, 1)
 
     def analyze_strengths_weaknesses(self, component_scores: Dict[str, float]) -> Tuple[List[str], List[str]]:
-        """分析优势和劣势，返回英文描述"""
         strengths = []
         weaknesses = []
 
@@ -120,7 +103,6 @@ class InclusivityScorer:
             'poor': 35
         }
 
-        # 分析各个组件
         for component, score in component_scores.items():
             if score >= thresholds['excellent']:
                 if component == 'language_balance':
@@ -149,10 +131,8 @@ class InclusivityScorer:
         return strengths, weaknesses
 
     def generate_recommendations(self, component_scores: Dict[str, float], bias_analysis) -> List[str]:
-        """生成改进建议，返回英文建议"""
         recommendations = []
 
-        # 基于低分组件给出建议
         if component_scores.get('language_balance', 100) < 60:
             if len(bias_analysis.masculine_words) > 0:
                 recommendations.append(
@@ -186,24 +166,17 @@ class InclusivityScorer:
         return recommendations
 
     def score_job_description(self, text: str) -> InclusivityScore:
-        """为职位描述评分，返回完整的评分结果"""
-        # 计算组件评分
         component_scores = self.calculate_component_scores(text)
 
-        # 计算总评分
         overall_score = self.calculate_overall_score(component_scores)
 
-        # 获取等级和颜色
         grade = get_score_label(overall_score)
         color = get_score_color(overall_score)
 
-        # 获取偏向分析
         bias_analysis = self.bias_detector.analyze_bias_patterns(text)
 
-        # 分析优势和劣势
         strengths, weaknesses = self.analyze_strengths_weaknesses(component_scores)
 
-        # 生成建议
         recommendations = self.generate_recommendations(component_scores, bias_analysis)
 
         return InclusivityScore(
@@ -217,7 +190,6 @@ class InclusivityScorer:
         )
 
     def compare_scores(self, texts: List[str]) -> Dict:
-        """比较多个文本的评分"""
         results = []
         for i, text in enumerate(texts):
             score_result = self.score_job_description(text)
@@ -228,7 +200,6 @@ class InclusivityScorer:
                 'result': score_result
             })
 
-        # 按分数排序
         results.sort(key=lambda x: x['score'], reverse=True)
 
         return {
@@ -239,7 +210,6 @@ class InclusivityScorer:
         }
 
     def get_score_distribution_stats(self, scores: List[float]) -> Dict:
-        """获取评分分布统计信息"""
         if not scores:
             return {}
 
@@ -258,10 +228,8 @@ class InclusivityScorer:
         }
 
 
-# 创建全局评分器实例
 inclusivity_scorer = InclusivityScorer()
 
 
 def get_inclusivity_scorer() -> InclusivityScorer:
-    """获取包容性评分器实例"""
     return inclusivity_scorer

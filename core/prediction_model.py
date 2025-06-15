@@ -1,6 +1,7 @@
 """
 Women Application Rate Prediction Model
 Optimized version with pre-trained model loading and English output
+@P4G
 """
 
 import streamlit as st
